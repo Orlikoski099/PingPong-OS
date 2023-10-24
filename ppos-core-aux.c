@@ -6,10 +6,62 @@
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
 
-#include <limits.h>
+void task_set_eet(task_t *task, int et) {
+    if (task == NULL) {
+        task = taskExec;
+    }
+    task->estimatedExecutionTime = et;
+    task->remainingExecutionTime = et;
+}
+
+int task_get_eet(task_t *task) {
+    if (task == NULL) {
+        task = taskExec;
+    }
+    return task->estimatedExecutionTime;
+}
+
+int task_get_ret(task_t *task) {
+    if (task == NULL) {
+        task = taskExec;
+    }
+    return task->remainingExecutionTime;
+}
+
+task_t *scheduler() {
+    if (readyQueue == NULL) {
+        printf("\nalow, essa merda ta bugada\n\n");
+        return NULL;
+    }
+    printf("\nScheduler iniciada com sucesso!\n");
+    task_t *nextTask = taskExec;
+    task_t *tempTask = readyQueue;
+    int shortestRemainingTime = INT_MAX;
+
+    printf("\nIniciando o loop da Scheduler!\n");
+    int i = 0;
+
+    while (tempTask != NULL) {
+        i++;
+        printf("\nSequencia %d do loop na scheduler!\n", i);
+        int remainingTime = tempTask->estimatedExecutionTime - (systemTime - tempTask->begin);
+        if (remainingTime < shortestRemainingTime) {
+            shortestRemainingTime = remainingTime;
+            nextTask = tempTask;
+        }
+        tempTask = tempTask->next;
+    }
+
+    printf("\nScheduler finalizada com sucesso!\n");
+
+    return nextTask;
+}
+
+void timer_handler() {
+    systemTime++;
+}
 
 // ****************************************************************************
-
 
 
 void before_ppos_init () {
@@ -395,60 +447,5 @@ int after_mqueue_msgs (mqueue_t *queue) {
     printf("\nmqueue_msgs - AFTER - [%d]", taskExec->id);
 #endif
     return 0;
-}
-
-void task_set_eet(task_t *task, int et) {
-    if (task == NULL) {
-        task = taskExec;
-    }
-    task->estimatedExecutionTime = et;
-    task->remainingExecutionTime = et;
-}
-
-int task_get_eet(task_t *task) {
-    if (task == NULL) {
-        task = taskExec;
-    }
-    return task->estimatedExecutionTime;
-}
-
-int task_get_ret(task_t *task) {
-    if (task == NULL) {
-        task = taskExec;
-    }
-    return task->remainingExecutionTime;
-}
-
-task_t *scheduler() {
-    if (readyQueue == NULL) {
-        printf("\nalow, essa merda ta bugada\n\n");
-        return NULL;
-    }
-    printf("\nScheduler iniciada com sucesso!\n");
-    task_t *nextTask = taskExec;
-    task_t *tempTask = readyQueue;
-    int shortestRemainingTime = INT_MAX;
-
-    printf("\nIniciando o loop da Scheduler!\n");
-    int i = 0;
-
-    while (tempTask != NULL) {
-        i++;
-        printf("\nSequencia %d do loop na scheduler!\n", i);
-        int remainingTime = tempTask->estimatedExecutionTime - (systemTime - tempTask->begin);
-        if (remainingTime < shortestRemainingTime) {
-            shortestRemainingTime = remainingTime;
-            nextTask = tempTask;
-        }
-        tempTask = tempTask->next;
-    }
-
-    printf("\nScheduler finalizada com sucesso!\n");
-
-    return nextTask;
-}
-
-void timer_handler() {
-    systemTime++;
 }
 
