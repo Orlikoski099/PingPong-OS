@@ -26,8 +26,12 @@ typedef struct task_t
 
    // ... (outros campos deve ser adicionados APOS esse comentario)
 
-    unsigned int systemTime = 0;
-   
+   int ajustablePriotity;
+
+   int estimatedExecutionTime, remainingExecutionTime;
+
+   unsigned int begin;
+
 } task_t ;
 
 // estrutura que define um semáforo

@@ -6,6 +6,7 @@
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
 
+#include <limits.h>
 
 // ****************************************************************************
 
@@ -420,21 +421,29 @@ int task_get_ret(task_t *task) {
 
 task_t *scheduler() {
     if (readyQueue == NULL) {
+        printf("\nalow, essa merda ta bugada\n\n");
         return NULL;
     }
-
+    printf("\nScheduler iniciada com sucesso!\n");
     task_t *nextTask = taskExec;
     task_t *tempTask = readyQueue;
-    int shortestRemainingTime = nextTask->remainingExecutionTime;
+    int shortestRemainingTime = INT_MAX;
+
+    printf("\nIniciando o loop da Scheduler!\n");
+    int i = 0;
 
     while (tempTask != NULL) {
-        int remainingTime = tempTask->estimatedExecutionTime - (systemTime - tempTask->startTime);
+        i++;
+        printf("\nSequencia %d do loop na scheduler!\n", i);
+        int remainingTime = tempTask->estimatedExecutionTime - (systemTime - tempTask->begin);
         if (remainingTime < shortestRemainingTime) {
             shortestRemainingTime = remainingTime;
             nextTask = tempTask;
         }
         tempTask = tempTask->next;
     }
+
+    printf("\nScheduler finalizada com sucesso!\n");
 
     return nextTask;
 }
