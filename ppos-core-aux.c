@@ -1,18 +1,97 @@
 #include "ppos.h"
 #include "ppos-core-globals.h"
 
-
 // ****************************************************************************
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
 
+#include "sys/time.h"
+
+void setTimer() //copiada de Marcos Travesso e Saulo -- Alterar
+{
+    // timer.it_value.tv_usec = 1000;    // primeiro disparo, em micro-segundos
+    // timer.it_interval.tv_usec = 1000; // disparos subsequentes, em micro-segundos
+    // timer.it_value.tv_sec = 0;
+    // timer.it_interval.tv_sec = 0;
+
+    // if (setitimer(ITIMER_REAL, &timer, 0) < 0) {
+    //     perror("Erro em setitimer: ");
+    //     exit(1);
+    // }
+}
+
+void set_handler() { //copiada de Marcos Travesso e Saulo -- Alterar
+    // action.sa_handler = sig_Handler;
+    // sigemptyset(&action.sa_mask);
+    // action.sa_flags = 0;
+    // if (sigaction(SIGALRM, &action, 0) < 0) {
+    //     perror("Erro em sigaction: ");
+    //     exit(1);
+    // }
+}
+
+void task_set_eet(task_t *task, int et) {
+    if (task == NULL) {
+        task = taskExec;
+    }
+
+    et = (et > 50 || et < -50) ? (et*-1 < 0 ? 50 : -50) : et; 
+
+    task->estimatedExecutionTime = et;
+    task->remainingExecutionTime = et;
+}
+
+int task_get_eet(task_t *task) {
+    if (task == NULL) {
+        task = taskExec;
+    }
+    return task->estimatedExecutionTime;
+}
+
+int task_get_ret(task_t *task) {
+    if (task == NULL) {
+        task = taskExec;
+    }
+    return task->remainingExecutionTime;
+}
+
+task_t *scheduler() {
+    if (readyQueue == NULL) {
+        return NULL;
+    }
+
+    task_t *nextTask = taskExec;
+    task_t *tempTask = readyQueue;
+    int shortestRemainingTime = nextTask->remainingExecutionTime;
+
+    // Observe que você pode usar a função task_get_ret() para obter o tempo restante
+    // em vez de acessar diretamente a variável remainingExecutionTime.
+
+    while (tempTask != NULL) {
+        int remainingTime = task_get_ret(tempTask);
+
+        if (remainingTime < shortestRemainingTime) {
+            shortestRemainingTime = remainingTime;
+            nextTask = tempTask;
+        }
+
+        tempTask = tempTask->next;
+    }
+
+    return nextTask;
+}
+
+void timer_handler() {
+    systemTime++;
+}
 
 // ****************************************************************************
 
 
-
 void before_ppos_init () {
     // put your customization here
+    // setTimer();
+    // set_handler();
 #ifdef DEBUG
     printf("\ninit - BEFORE");
 #endif
@@ -27,6 +106,7 @@ void after_ppos_init () {
 
 void before_task_create (task_t *task ) {
     // put your customization here
+    task->begin = systime();
 #ifdef DEBUG
     printf("\ntask_create - BEFORE - [%d]", task->id);
 #endif
@@ -394,52 +474,5 @@ int after_mqueue_msgs (mqueue_t *queue) {
     printf("\nmqueue_msgs - AFTER - [%d]", taskExec->id);
 #endif
     return 0;
-}
-
-void task_set_eet(task_t *task, int et) {
-    if (task == NULL) {
-        task = taskExec;
-    }
-    task->estimatedExecutionTime = et;
-    task->remainingExecutionTime = et;
-}
-
-int task_get_eet(task_t *task) {
-    if (task == NULL) {
-        task = taskExec;
-    }
-    return task->estimatedExecutionTime;
-}
-
-int task_get_ret(task_t *task) {
-    if (task == NULL) {
-        task = taskExec;
-    }
-    return task->remainingExecutionTime;
-}
-
-task_t *scheduler() {
-    if (readyQueue == NULL) {
-        return NULL;
-    }
-
-    task_t *nextTask = taskExec;
-    task_t *tempTask = readyQueue;
-    int shortestRemainingTime = nextTask->remainingExecutionTime;
-
-    while (tempTask != NULL) {
-        int remainingTime = tempTask->estimatedExecutionTime - (systemTime - tempTask->startTime);
-        if (remainingTime < shortestRemainingTime) {
-            shortestRemainingTime = remainingTime;
-            nextTask = tempTask;
-        }
-        tempTask = tempTask->next;
-    }
-
-    return nextTask;
-}
-
-void timer_handler() {
-    systemTime++;
 }
 
