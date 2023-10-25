@@ -7,6 +7,8 @@
 
 #include "sys/time.h"
 
+#include "math.h"
+
 void setTimer() //copiada de Marcos Travesso e Saulo -- Alterar
 {
     // timer.it_value.tv_usec = 1000;    // primeiro disparo, em micro-segundos
@@ -35,7 +37,7 @@ void task_set_eet(task_t *task, int et) {
         task = taskExec;
     }
 
-    et = (et > 50 || et < -50) ? (et*-1 < 0 ? 50 : -50) : et; 
+    et = et > abs(50) ? ((et > 0) ? 50 : -50) : et;
 
     task->estimatedExecutionTime = et;
     task->remainingExecutionTime = et;
