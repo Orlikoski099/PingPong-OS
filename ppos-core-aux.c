@@ -1,15 +1,42 @@
 #include "ppos.h"
 #include "ppos-core-globals.h"
 
-
 // ****************************************************************************
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
+
+#include "sys/time.h"
+
+void setTimer() //copiada de Marcos Travesso e Saulo -- Alterar
+{
+    // timer.it_value.tv_usec = 1000;    // primeiro disparo, em micro-segundos
+    // timer.it_interval.tv_usec = 1000; // disparos subsequentes, em micro-segundos
+    // timer.it_value.tv_sec = 0;
+    // timer.it_interval.tv_sec = 0;
+
+    // if (setitimer(ITIMER_REAL, &timer, 0) < 0) {
+    //     perror("Erro em setitimer: ");
+    //     exit(1);
+    // }
+}
+
+void set_handler() { //copiada de Marcos Travesso e Saulo -- Alterar
+    // action.sa_handler = sig_Handler;
+    // sigemptyset(&action.sa_mask);
+    // action.sa_flags = 0;
+    // if (sigaction(SIGALRM, &action, 0) < 0) {
+    //     perror("Erro em sigaction: ");
+    //     exit(1);
+    // }
+}
 
 void task_set_eet(task_t *task, int et) {
     if (task == NULL) {
         task = taskExec;
     }
+
+    et = (et > 50 || et < -50) ? (et*-1 < 0 ? 50 : -50) : et; 
+
     task->estimatedExecutionTime = et;
     task->remainingExecutionTime = et;
 }
@@ -30,29 +57,26 @@ int task_get_ret(task_t *task) {
 
 task_t *scheduler() {
     if (readyQueue == NULL) {
-        printf("\nalow, essa merda ta bugada\n\n");
         return NULL;
     }
-    printf("\nScheduler iniciada com sucesso!\n");
+
     task_t *nextTask = taskExec;
     task_t *tempTask = readyQueue;
-    int shortestRemainingTime = INT_MAX;
+    int shortestRemainingTime = nextTask->remainingExecutionTime;
 
-    printf("\nIniciando o loop da Scheduler!\n");
-    int i = 0;
+    // Observe que você pode usar a função task_get_ret() para obter o tempo restante
+    // em vez de acessar diretamente a variável remainingExecutionTime.
 
     while (tempTask != NULL) {
-        i++;
-        printf("\nSequencia %d do loop na scheduler!\n", i);
-        int remainingTime = tempTask->estimatedExecutionTime - (systemTime - tempTask->begin);
+        int remainingTime = task_get_ret(tempTask);
+
         if (remainingTime < shortestRemainingTime) {
             shortestRemainingTime = remainingTime;
             nextTask = tempTask;
         }
+
         tempTask = tempTask->next;
     }
-
-    printf("\nScheduler finalizada com sucesso!\n");
 
     return nextTask;
 }
@@ -66,6 +90,8 @@ void timer_handler() {
 
 void before_ppos_init () {
     // put your customization here
+    // setTimer();
+    // set_handler();
 #ifdef DEBUG
     printf("\ninit - BEFORE");
 #endif
@@ -80,6 +106,7 @@ void after_ppos_init () {
 
 void before_task_create (task_t *task ) {
     // put your customization here
+    task->begin = systime();
 #ifdef DEBUG
     printf("\ntask_create - BEFORE - [%d]", task->id);
 #endif
