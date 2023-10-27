@@ -110,24 +110,25 @@ void before_ppos_init () {
 #endif
 }
 
-void after_task_create (task_t *task ) {
+void after_task_create(task_t *task) {
     task_set_eet(task, DEFAULT_INIT_TASK_TIME);
     task->creationTime = systemTime;
     task->lastActivation = systime();
     task->running_time = 0;
+    task->state = PPOS_TASK_STATE_READY; // Defina o estado como READY
     taskExec = task;
 #ifdef DEBUG
     printf("\ntask_create - AFTER - [%d]", task->id);
 #endif
 }
 
-void after_task_exit () {
+void after_task_exit() {
     // put your customization here
     unsigned int currentTime = systime();
     unsigned int executionTime = currentTime - taskExec->creationTime;
     unsigned int processorTime = taskExec->running_time;
     int numActivations = taskExec->activations;
-
+    taskExec->state = PPOS_TASK_STATE_TERMINATED; // Defina o estado como TERMINATED
     printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", taskExec->id, executionTime, processorTime, numActivations);
 
 #ifdef DEBUG
@@ -135,19 +136,23 @@ void after_task_exit () {
 #endif
 }
 
-void before_task_switch ( task_t *task ) {
+void before_task_switch(task_t *task) {
     // put your customization here
     if (taskExec != NULL && taskExec->state != 's') {
         taskExec->running_time += systime() - taskExec->lastActivation;
+        taskExec->state = PPOS_TASK_STATE_READY; // Atualize o estado para READY
     }
 #ifdef DEBUG
     printf("\ntask_switch - BEFORE - [%d -> %d]", taskExec->id, task->id);
 #endif
 }
 
-void before_task_yield () {
+void before_task_yield() {
     // put your customization here
-    taskExec->running_time += (systime() - taskExec->lastActivation);
+    if (taskExec != NULL && taskExec->state != 's') {
+        taskExec->running_time += systime() - taskExec->lastActivation;
+        taskExec->state = PPOS_TASK_STATE_READY; // Atualize o estado para READY
+    }
 #ifdef DEBUG
     printf("\ntask_yield - BEFORE - [%d]", taskExec->id);
 #endif
