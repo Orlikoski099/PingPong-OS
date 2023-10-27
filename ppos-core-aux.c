@@ -4,41 +4,52 @@
 // ****************************************************************************
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
-
 #include "sys/time.h"
-
+#include <signal.h>
 #include "math.h"
 
-void setTimer() //copiada de Marcos Travesso e Saulo -- Alterar
-{
-    // timer.it_value.tv_usec = 1000;    // primeiro disparo, em micro-segundos
-    // timer.it_interval.tv_usec = 1000; // disparos subsequentes, em micro-segundos
-    // timer.it_value.tv_sec = 0;
-    // timer.it_interval.tv_sec = 0;
+#define DEFAULT_INIT_TASK_TIME 99999
 
-    // if (setitimer(ITIMER_REAL, &timer, 0) < 0) {
-    //     perror("Erro em setitimer: ");
-    //     exit(1);
-    // }
+
+void init_timer()
+{
+    struct itimerval timer;
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = 1000;  // 1 ms em microssegundos
+    timer.it_interval = timer.it_value;  // Configura interrupções periódicas
+
+    // Configura o temporizador
+    setitimer(ITIMER_REAL, &timer, 0);
 }
 
-void set_handler() { //copiada de Marcos Travesso e Saulo -- Alterar
-    // action.sa_handler = sig_Handler;
-    // sigemptyset(&action.sa_mask);
-    // action.sa_flags = 0;
-    // if (sigaction(SIGALRM, &action, 0) < 0) {
-    //     perror("Erro em sigaction: ");
-    //     exit(1);
-    // }
+void timer_handler(int signum) {
+    systemTime++;  // Incrementa a contagem de "ticks de relógio" a cada interrupção
+}
+
+// Função para capturar e tratar o sinal SIGALRM
+void setup_signal_handler() {
+    struct sigaction sa;
+    sa.sa_handler = timer_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+
+    if (sigaction(SIGALRM, &sa, NULL) == -1) {
+        perror("Erro ao configurar o tratador de sinais");
+        exit(1);
+    }
+}
+
+// Função para atualizar o tempo restante da tarefa
+void update_remaining_time(task_t *task) {
+    unsigned int elapsedTime = systemTime - task->lastActivation;
+    task->remainingExecutionTime -= elapsedTime;
+    task->lastActivation = systemTime;
 }
 
 void task_set_eet(task_t *task, int et) {
     if (task == NULL) {
         task = taskExec;
     }
-
-    et = et > abs(50) ? ((et > 0) ? 50 : -50) : et;
-
     task->estimatedExecutionTime = et;
     task->remainingExecutionTime = et;
 }
@@ -58,16 +69,21 @@ int task_get_ret(task_t *task) {
 }
 
 task_t *scheduler() {
+    systemTime++; // Atualize o tempo do sistema
+    printf("Está na schedule\n");
+
     if (readyQueue == NULL) {
         return NULL;
     }
-
+    
     task_t *nextTask = taskExec;
     task_t *tempTask = readyQueue;
     int shortestRemainingTime = nextTask->remainingExecutionTime;
 
-    // Observe que você pode usar a função task_get_ret() para obter o tempo restante
-    // em vez de acessar diretamente a variável remainingExecutionTime.
+    // Se a tarefa em execução não estiver suspensa, atualize seu tempo restante
+    if (taskExec != NULL && taskExec->state != 's') {
+        update_remaining_time(taskExec);
+    }
 
     while (tempTask != NULL) {
         int remainingTime = task_get_ret(tempTask);
@@ -79,12 +95,7 @@ task_t *scheduler() {
 
         tempTask = tempTask->next;
     }
-
     return nextTask;
-}
-
-void timer_handler() {
-    systemTime++;
 }
 
 // ****************************************************************************
@@ -92,8 +103,8 @@ void timer_handler() {
 
 void before_ppos_init () {
     // put your customization here
-    // setTimer();
-    // set_handler();
+    setup_signal_handler();
+    init_timer();
 #ifdef DEBUG
     printf("\ninit - BEFORE");
 #endif
@@ -108,14 +119,17 @@ void after_ppos_init () {
 
 void before_task_create (task_t *task ) {
     // put your customization here
-    task->begin = systime();
 #ifdef DEBUG
     printf("\ntask_create - BEFORE - [%d]", task->id);
 #endif
 }
 
 void after_task_create (task_t *task ) {
-    // put your customization here
+    task_set_eet(task, DEFAULT_INIT_TASK_TIME);
+    task->creationTime = systemTime;
+    task->lastActivation = systime();
+    task->running_time = 0;
+    taskExec = task;
 #ifdef DEBUG
     printf("\ntask_create - AFTER - [%d]", task->id);
 #endif
@@ -130,6 +144,13 @@ void before_task_exit () {
 
 void after_task_exit () {
     // put your customization here
+    unsigned int currentTime = systime();
+    unsigned int executionTime = currentTime - taskExec->creationTime;
+    unsigned int processorTime = taskExec->running_time;
+    int numActivations = taskExec->activations;
+
+    printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", taskExec->id, executionTime, processorTime, numActivations);
+
 #ifdef DEBUG
     printf("\ntask_exit - AFTER- [%d]", taskExec->id);
 #endif
@@ -137,6 +158,9 @@ void after_task_exit () {
 
 void before_task_switch ( task_t *task ) {
     // put your customization here
+    if (taskExec != NULL && taskExec->state != 's') {
+        taskExec->running_time += systime() - taskExec->lastActivation;
+    }
 #ifdef DEBUG
     printf("\ntask_switch - BEFORE - [%d -> %d]", taskExec->id, task->id);
 #endif
@@ -151,6 +175,7 @@ void after_task_switch ( task_t *task ) {
 
 void before_task_yield () {
     // put your customization here
+    // taskExec->running_time += (systime() - taskExec->lastActivation);
 #ifdef DEBUG
     printf("\ntask_yield - BEFORE - [%d]", taskExec->id);
 #endif
@@ -165,6 +190,9 @@ void after_task_yield () {
 
 void before_task_suspend( task_t *task ) {
     // put your customization here
+    if (taskExec->state != 's') {
+        taskExec->running_time += systime() - taskExec->lastActivation;
+    }
 #ifdef DEBUG
     printf("\ntask_suspend - BEFORE - [%d]", task->id);
 #endif
