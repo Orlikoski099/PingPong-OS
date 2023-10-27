@@ -110,20 +110,6 @@ void before_ppos_init () {
 #endif
 }
 
-void after_ppos_init () {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ninit - AFTER");
-#endif
-}
-
-void before_task_create (task_t *task ) {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ntask_create - BEFORE - [%d]", task->id);
-#endif
-}
-
 void after_task_create (task_t *task ) {
     task_set_eet(task, DEFAULT_INIT_TASK_TIME);
     task->creationTime = systemTime;
@@ -132,13 +118,6 @@ void after_task_create (task_t *task ) {
     taskExec = task;
 #ifdef DEBUG
     printf("\ntask_create - AFTER - [%d]", task->id);
-#endif
-}
-
-void before_task_exit () {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ntask_exit - BEFORE - [%d]", taskExec->id);
 #endif
 }
 
@@ -166,27 +145,13 @@ void before_task_switch ( task_t *task ) {
 #endif
 }
 
-void after_task_switch ( task_t *task ) {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ntask_switch - AFTER - [%d -> %d]", taskExec->id, task->id);
-#endif
-}
-
 void before_task_yield () {
     // put your customization here
-    // taskExec->running_time += (systime() - taskExec->lastActivation);
+    taskExec->running_time += (systime() - taskExec->lastActivation);
 #ifdef DEBUG
     printf("\ntask_yield - BEFORE - [%d]", taskExec->id);
 #endif
 }
-void after_task_yield () {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ntask_yield - AFTER - [%d]", taskExec->id);
-#endif
-}
-
 
 void before_task_suspend( task_t *task ) {
     // put your customization here
@@ -195,6 +160,42 @@ void before_task_suspend( task_t *task ) {
     }
 #ifdef DEBUG
     printf("\ntask_suspend - BEFORE - [%d]", task->id);
+#endif
+}
+
+void after_ppos_init () {
+    // put your customization here
+#ifdef DEBUG
+    printf("\ninit - AFTER");
+#endif
+}
+
+void before_task_create (task_t *task ) {
+    // put your customization here
+#ifdef DEBUG
+    printf("\ntask_create - BEFORE - [%d]", task->id);
+#endif
+}
+
+void before_task_exit () {
+    // put your customization here
+#ifdef DEBUG
+    printf("\ntask_exit - BEFORE - [%d]", taskExec->id);
+#endif
+}
+
+void after_task_switch ( task_t *task ) {
+    // put your customization here
+#ifdef DEBUG
+    printf("\ntask_switch - AFTER - [%d -> %d]", taskExec->id, task->id);
+#endif
+}
+
+
+void after_task_yield () {
+    // put your customization here
+#ifdef DEBUG
+    printf("\ntask_yield - AFTER - [%d]", taskExec->id);
 #endif
 }
 
