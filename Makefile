@@ -7,6 +7,9 @@ preemp: ppos-core-aux.o libppos_static.a pingpong-preempcao.o
 sche: ppos-core-aux.o libppos_static.a pingpong-scheduler.o
 			gcc ppos-core-aux.c libppos_static.a pingpong-scheduler.c -o sche
 
+srtf: ppos-core-aux.o libppos_static.a pingpong-scheduler.o
+			gcc ppos-core-aux.c libppos_static.a pingpong-scheduler-srtf.c -o srtf
+
 ppos-core-aux.o: ppos-core-aux.c
 			gcc -c ppos-core-aux.c
 
