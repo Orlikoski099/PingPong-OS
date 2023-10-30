@@ -25,15 +25,23 @@ typedef struct task_t
   unsigned int awakeTime; // used to store the time when it should be waked up
 
   // ... (outros campos deve ser adicionados APOS esse comentario)
-
-  int ajustablePriotity, defaultPriority;
-
-  int estimatedExecutionTime, remainingExecutionTime;
-
+  
+  int running_time;
+  int estimatedExecutionTime, remainingExecutionTime; 
   int activations;
-  unsigned int begin, lastActivation, procUse;
+  unsigned int creationTime, lastActivation, procUse;
+  int isSystemTask;
+  int quantum;
+  int priority;
 
 } task_t;
+
+typedef struct ready_queue_t {
+    task_t *head;
+    task_t *tail;
+} ready_queue_t;
+
+
 
 // estrutura que define um semáforo
 typedef struct
