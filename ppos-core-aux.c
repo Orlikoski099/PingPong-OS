@@ -16,20 +16,6 @@ task_t *dispatcher;          // Tarefa do despachante
 task_t *taskMain;            // Tarefa principal (main)
 int systemActive;
 
-//////////
-// Coloque o código da tarefa principal aqui
-
-void main_task(void *arg)
-{
-    task_t *self = (task_t *)arg; // Obtém um ponteiro para a tarefa principal
-
-    // Após a conclusão, você pode encerrar a tarefa principal
-    self->state = 'e'; // Defina o estado da tarefa principal como 'terminada'
-
-    // Retorne se a tarefa principal terminar
-    task_exit(0);
-}
-
 void init_timer()
 {
     struct itimerval timer;
