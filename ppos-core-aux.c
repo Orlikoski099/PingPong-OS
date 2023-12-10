@@ -1,322 +1,167 @@
 #include "ppos.h"
 #include "ppos-core-globals.h"
+#include "ppos_disk.h"
+#include <signal.h>
+#include <sys/time.h>
+
+#define _GNU_SOURCE
+
+
+#define DEBUG true
 
 // ****************************************************************************
-// Coloque aqui as suas modificações, p.ex. includes, defines variáveis,
+// Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
-#include "sys/time.h"
-#include <signal.h>
-#include "math.h"
 
-#define DEFAULT_INIT_TASK_TIME 99999
+#define SIGNAL_ALARM 14
 
-int quantum = 20;
-unsigned int systemTime = 0; // Contador de tempo do sistema
-task_t *dispatcher;          // Tarefa do despachante
-task_t *taskMain;            // Tarefa principal (main)
-int systemActive;
+void setSignal();
+void setTimer();
+void signalHandler(int signum);
 
-void init_timer()
-{
-    struct itimerval timer;
-    timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = 1000;      // 1 ms em microssegundos
-    timer.it_interval = timer.it_value; // Configura interrupções periódicas
+struct sigaction action;
+struct itimerval timer;
 
-    // Configura o temporizador
-    setitimer(ITIMER_REAL, &timer, 0);
-}
+// ****************************************************************************
 
-void timer_handler(int signum)
-{
-    systemTime++; // Incrementa a contagem de ticks a cada interrupção
 
-    // Verifica se a preempção está habilitada (preemption == 1)
-    if (preemption == 1)
-    {
-        if (taskExec != NULL && taskExec->isSystemTask == 0)
-        {                        // Verifique se é uma tarefa de usuário
-            taskExec->quantum--; // Decrementa o quantum da tarefa atual
-            if (taskExec->quantum == 0)
-            {
-                taskExec->state = 'r';   // Coloca a tarefa de volta na fila de prontas
-                task_switch(dispatcher); // Volta ao dispatcher
-            }
-        }
-    }
-}
 
-void dispatcher_body()
-{
-    while (1)
-    {
-        task_t *nextTask = scheduler(); // Use a função scheduler para escolher a próxima tarefa
-
-        if (nextTask != NULL)
-        {
-            if (nextTask->state != 'r')
-            {
-                // Se a tarefa não está em estado 'r', coloque-a na fila de prontas
-                task_yield();
-            }
-            task_switch(nextTask); // Troque para a próxima tarefa
-        }
-    }
-}
-
-// Função para capturar e tratar o sinal SIGALRM
-void setup_signal_handler()
-{
-    struct sigaction sa;
-    sa.sa_handler = timer_handler;
-    sa.sa_flags = 0;
-    sigemptyset(&sa.sa_mask);
-
-    if (sigaction(SIGALRM, &sa, NULL) == -1)
-    {
-        perror("Erro ao configurar o tratador de sinais");
-        exit(1);
-    }
-}
-
-// Função para atualizar o tempo restante da tarefa
-void update_remaining_time(task_t *task)
-{
-    unsigned int elapsedTime = systemTime - task->lastActivation;
-    task->remainingExecutionTime -= elapsedTime;
-    task->lastActivation = systemTime;
-}
-
-void task_set_eet(task_t *task, int et)
-{
-    if (task == NULL)
-    {
-        task = taskExec;
-    }
-    task->estimatedExecutionTime = et;
-    task->remainingExecutionTime = et;
-}
-
-int task_get_eet(task_t *task)
-{
-    if (task == NULL)
-    {
-        task = taskExec;
-    }
-    return task->estimatedExecutionTime;
-}
-
-int task_get_ret(task_t *task)
-{
-    if (task == NULL)
-    {
-        task = taskExec;
-    }
-    return task->remainingExecutionTime;
-}
-
-task_t *scheduler()
-{
-    systemTime++; // Atualize o tempo do sistema
-    printf("Está na schedule\n");
-
-    if (readyQueue == NULL)
-    {
-        return NULL;
-    }
-
-    task_t *nextTask = taskExec;
-    task_t *tempTask = readyQueue;
-    int shortestRemainingTime = nextTask->remainingExecutionTime;
-
-    // Se a tarefa em execução não estiver suspensa, atualize seu tempo restante
-    if (taskExec != NULL && taskExec->state != 's')
-    {
-        update_remaining_time(taskExec);
-    }
-
-    while (tempTask != NULL)
-    {
-        int remainingTime = task_get_ret(tempTask);
-
-        if (remainingTime < shortestRemainingTime)
-        {
-            shortestRemainingTime = remainingTime;
-            nextTask = tempTask;
-        }
-
-        tempTask = tempTask->next;
-    }
-    return nextTask;
-}
-
-void dispatcher_handler(int signum)
-{
-    // Verifica se a tarefa atual é de sistema (dispatcher) antes de permitir preempção
-    if (taskExec->isSystemTask == 1)
-    {
-        return;
-    }
-}
-
-void before_ppos_init()
-{
+void before_ppos_init () {
     // put your customization here
-    setup_signal_handler();
-    init_timer();
+
+    // Inicializacao do sinal e do timer
+    setSignal();
+    setTimer();
+
 #ifdef DEBUG
     printf("\ninit - BEFORE");
 #endif
 }
 
-void after_task_create(task_t *task)
-{
-    task_set_eet(task, DEFAULT_INIT_TASK_TIME);
-    task->creationTime = systemTime;
-    task->lastActivation = systime();
-    task->running_time = 0;
-    task->state = PPOS_TASK_STATE_READY; // Defina o estado como READY
-    taskExec = task;
-#ifdef DEBUG
-    printf("\ntask_create - AFTER - [%d]", task->id);
-#endif
-}
-
-void after_task_exit()
-{
-    // put your customization here
-    unsigned int currentTime = systime();
-    unsigned int executionTime = currentTime - taskExec->creationTime;
-    unsigned int processorTime = taskExec->running_time;
-    int numActivations = taskExec->activations;
-    taskExec->state = PPOS_TASK_STATE_TERMINATED; // Defina o estado como TERMINATED
-    printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", taskExec->id, executionTime, processorTime, numActivations);
-
-#ifdef DEBUG
-    printf("\ntask_exit - AFTER- [%d]", taskExec->id);
-#endif
-}
-
-void before_task_switch(task_t *task)
-{
-    // put your customization here
-    if (taskExec != NULL && taskExec->state != 's')
-    {
-        taskExec->running_time += systime() - taskExec->lastActivation;
-        taskExec->state = PPOS_TASK_STATE_READY; // Atualize o estado para READY
-    }
-#ifdef DEBUG
-    printf("\ntask_switch - BEFORE - [%d -> %d]", taskExec->id, task->id);
-#endif
-}
-
-void before_task_yield()
-{
-    // put your customization here
-    if (taskExec != NULL && taskExec->state != 's')
-    {
-        taskExec->running_time += systime() - taskExec->lastActivation;
-        taskExec->state = PPOS_TASK_STATE_READY; // Atualize o estado para READY
-    }
-#ifdef DEBUG
-    printf("\ntask_yield - BEFORE - [%d]", taskExec->id);
-#endif
-}
-
-void before_task_suspend(task_t *task)
-{
-    // put your customization here
-    if (taskExec->state != 's')
-    {
-        taskExec->running_time += systime() - taskExec->lastActivation;
-    }
-#ifdef DEBUG
-    printf("\ntask_suspend - BEFORE - [%d]", task->id);
-#endif
-}
-
-void after_ppos_init()
-{
+void after_ppos_init () {
     // put your customization here
 #ifdef DEBUG
     printf("\ninit - AFTER");
 #endif
 }
 
-void before_task_create(task_t *task)
-{
+void before_task_create (task_t *task ) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_create - BEFORE - [%d]", task->id);
 #endif
 }
 
-void before_task_exit()
-{
+void after_task_create (task_t *task ) {
     // put your customization here
+
+    // Quando a tarefa for criada, inicializa o tempo de execucao dela, o quantum e quando ela foi iniciada, de acordo com o "relogio" do sinal
+    if (task != NULL) {
+        task->estimated_execution_time = 99999;
+        task->time = 20;
+        task->time = systemTime;
+    }
+    
+#ifdef DEBUG
+    printf("\ntask_create - AFTER - [%d]", task->id);
+#endif
+}
+
+void before_task_exit () {
+    // put your customization here
+
+    // Quando a tarefa acabar, printa o resultado dela
+    if (taskExec != NULL)
+        printf("Task %d exit: Execution time: %d ms Processor time: %d ms %d activations\n", taskExec->id, systemTime - taskExec->time, taskExec->estimated_execution_time, taskExec->quantidade_chamada_task);
 #ifdef DEBUG
     printf("\ntask_exit - BEFORE - [%d]", taskExec->id);
 #endif
 }
 
-void after_task_switch(task_t *task)
-{
+void after_task_exit () {
+    // put your customization here
+#ifdef DEBUG
+    printf("\ntask_exit - AFTER- [%d]", taskExec->id);
+#endif
+}
+
+void before_task_switch ( task_t *task ) {
+    // put your customization here
+
+    // Quando a tarefa receber o processador, inicializa o quantum dela para 20 e aumenta a quantidade de vezes em que ela foi chamada
+    if (task != NULL) {
+        task->time = 20;
+        (task->quantidade_chamada_task)++;
+    }
+#ifdef DEBUG
+    printf("\ntask_switch - BEFORE - [%d -> %d]", taskExec->id, task->id);
+#endif
+}
+
+void after_task_switch ( task_t *task ) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_switch - AFTER - [%d -> %d]", taskExec->id, task->id);
 #endif
 }
 
-void after_task_yield()
-{
+void before_task_yield () {
+    // put your customization hereW
+#ifdef DEBUG
+    printf("\ntask_yield - BEFORE - [%d]", taskExec->id);
+#endif
+}
+void after_task_yield () {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_yield - AFTER - [%d]", taskExec->id);
 #endif
 }
 
-void after_task_suspend(task_t *task)
-{
+
+void before_task_suspend( task_t *task ) {
+    // put your customization here
+#ifdef DEBUG
+    printf("\ntask_suspend - BEFORE - [%d]", task->id);
+#endif
+}
+
+void after_task_suspend( task_t *task ) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_suspend - AFTER - [%d]", task->id);
 #endif
 }
 
-void before_task_resume(task_t *task)
-{
+void before_task_resume(task_t *task) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_resume - BEFORE - [%d]", task->id);
 #endif
 }
 
-void after_task_resume(task_t *task)
-{
+void after_task_resume(task_t *task) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_resume - AFTER - [%d]", task->id);
 #endif
 }
 
-void before_task_sleep()
-{
+void before_task_sleep () {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_sleep - BEFORE - [%d]", taskExec->id);
 #endif
 }
 
-void after_task_sleep()
-{
+void after_task_sleep () {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_sleep - AFTER - [%d]", taskExec->id);
 #endif
 }
 
-int before_task_join(task_t *task)
-{
+int before_task_join (task_t *task) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_join - BEFORE - [%d]", taskExec->id);
@@ -324,8 +169,7 @@ int before_task_join(task_t *task)
     return 0;
 }
 
-int after_task_join(task_t *task)
-{
+int after_task_join (task_t *task) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_join - AFTER - [%d]", taskExec->id);
@@ -333,8 +177,8 @@ int after_task_join(task_t *task)
     return 0;
 }
 
-int before_sem_create(semaphore_t *s, int value)
-{
+
+int before_sem_create (semaphore_t *s, int value) {
     // put your customization here
 #ifdef DEBUG
     printf("\nsem_create - BEFORE - [%d]", taskExec->id);
@@ -342,8 +186,7 @@ int before_sem_create(semaphore_t *s, int value)
     return 0;
 }
 
-int after_sem_create(semaphore_t *s, int value)
-{
+int after_sem_create (semaphore_t *s, int value) {
     // put your customization here
 #ifdef DEBUG
     printf("\nsem_create - AFTER - [%d]", taskExec->id);
@@ -351,8 +194,7 @@ int after_sem_create(semaphore_t *s, int value)
     return 0;
 }
 
-int before_sem_down(semaphore_t *s)
-{
+int before_sem_down (semaphore_t *s) {
     // put your customization here
 #ifdef DEBUG
     printf("\nsem_down - BEFORE - [%d]", taskExec->id);
@@ -360,8 +202,7 @@ int before_sem_down(semaphore_t *s)
     return 0;
 }
 
-int after_sem_down(semaphore_t *s)
-{
+int after_sem_down (semaphore_t *s) {
     // put your customization here
 #ifdef DEBUG
     printf("\nsem_down - AFTER - [%d]", taskExec->id);
@@ -369,8 +210,7 @@ int after_sem_down(semaphore_t *s)
     return 0;
 }
 
-int before_sem_up(semaphore_t *s)
-{
+int before_sem_up (semaphore_t *s) {
     // put your customization here
 #ifdef DEBUG
     printf("\nsem_up - BEFORE - [%d]", taskExec->id);
@@ -378,8 +218,7 @@ int before_sem_up(semaphore_t *s)
     return 0;
 }
 
-int after_sem_up(semaphore_t *s)
-{
+int after_sem_up (semaphore_t *s) {
     // put your customization here
 #ifdef DEBUG
     printf("\nsem_up - AFTER - [%d]", taskExec->id);
@@ -387,8 +226,7 @@ int after_sem_up(semaphore_t *s)
     return 0;
 }
 
-int before_sem_destroy(semaphore_t *s)
-{
+int before_sem_destroy (semaphore_t *s) {
     // put your customization here
 #ifdef DEBUG
     printf("\nsem_destroy - BEFORE - [%d]", taskExec->id);
@@ -396,8 +234,7 @@ int before_sem_destroy(semaphore_t *s)
     return 0;
 }
 
-int after_sem_destroy(semaphore_t *s)
-{
+int after_sem_destroy (semaphore_t *s) {
     // put your customization here
 #ifdef DEBUG
     printf("\nsem_destroy - AFTER - [%d]", taskExec->id);
@@ -405,8 +242,7 @@ int after_sem_destroy(semaphore_t *s)
     return 0;
 }
 
-int before_mutex_create(mutex_t *m)
-{
+int before_mutex_create (mutex_t *m) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmutex_create - BEFORE - [%d]", taskExec->id);
@@ -414,8 +250,7 @@ int before_mutex_create(mutex_t *m)
     return 0;
 }
 
-int after_mutex_create(mutex_t *m)
-{
+int after_mutex_create (mutex_t *m) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmutex_create - AFTER - [%d]", taskExec->id);
@@ -423,8 +258,7 @@ int after_mutex_create(mutex_t *m)
     return 0;
 }
 
-int before_mutex_lock(mutex_t *m)
-{
+int before_mutex_lock (mutex_t *m) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmutex_lock - BEFORE - [%d]", taskExec->id);
@@ -432,8 +266,7 @@ int before_mutex_lock(mutex_t *m)
     return 0;
 }
 
-int after_mutex_lock(mutex_t *m)
-{
+int after_mutex_lock (mutex_t *m) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmutex_lock - AFTER - [%d]", taskExec->id);
@@ -441,8 +274,7 @@ int after_mutex_lock(mutex_t *m)
     return 0;
 }
 
-int before_mutex_unlock(mutex_t *m)
-{
+int before_mutex_unlock (mutex_t *m) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmutex_unlock - BEFORE - [%d]", taskExec->id);
@@ -450,8 +282,7 @@ int before_mutex_unlock(mutex_t *m)
     return 0;
 }
 
-int after_mutex_unlock(mutex_t *m)
-{
+int after_mutex_unlock (mutex_t *m) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmutex_unlock - AFTER - [%d]", taskExec->id);
@@ -459,8 +290,7 @@ int after_mutex_unlock(mutex_t *m)
     return 0;
 }
 
-int before_mutex_destroy(mutex_t *m)
-{
+int before_mutex_destroy (mutex_t *m) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmutex_destroy - BEFORE - [%d]", taskExec->id);
@@ -468,8 +298,7 @@ int before_mutex_destroy(mutex_t *m)
     return 0;
 }
 
-int after_mutex_destroy(mutex_t *m)
-{
+int after_mutex_destroy (mutex_t *m) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmutex_destroy - AFTER - [%d]", taskExec->id);
@@ -477,8 +306,7 @@ int after_mutex_destroy(mutex_t *m)
     return 0;
 }
 
-int before_barrier_create(barrier_t *b, int N)
-{
+int before_barrier_create (barrier_t *b, int N) {
     // put your customization here
 #ifdef DEBUG
     printf("\nbarrier_create - BEFORE - [%d]", taskExec->id);
@@ -486,8 +314,7 @@ int before_barrier_create(barrier_t *b, int N)
     return 0;
 }
 
-int after_barrier_create(barrier_t *b, int N)
-{
+int after_barrier_create (barrier_t *b, int N) {
     // put your customization here
 #ifdef DEBUG
     printf("\nbarrier_create - AFTER - [%d]", taskExec->id);
@@ -495,8 +322,7 @@ int after_barrier_create(barrier_t *b, int N)
     return 0;
 }
 
-int before_barrier_join(barrier_t *b)
-{
+int before_barrier_join (barrier_t *b) {
     // put your customization here
 #ifdef DEBUG
     printf("\nbarrier_join - BEFORE - [%d]", taskExec->id);
@@ -504,8 +330,7 @@ int before_barrier_join(barrier_t *b)
     return 0;
 }
 
-int after_barrier_join(barrier_t *b)
-{
+int after_barrier_join (barrier_t *b) {
     // put your customization here
 #ifdef DEBUG
     printf("\nbarrier_join - AFTER - [%d]", taskExec->id);
@@ -513,8 +338,7 @@ int after_barrier_join(barrier_t *b)
     return 0;
 }
 
-int before_barrier_destroy(barrier_t *b)
-{
+int before_barrier_destroy (barrier_t *b) {
     // put your customization here
 #ifdef DEBUG
     printf("\nbarrier_destroy - BEFORE - [%d]", taskExec->id);
@@ -522,8 +346,7 @@ int before_barrier_destroy(barrier_t *b)
     return 0;
 }
 
-int after_barrier_destroy(barrier_t *b)
-{
+int after_barrier_destroy (barrier_t *b) {
     // put your customization here
 #ifdef DEBUG
     printf("\nbarrier_destroy - AFTER - [%d]", taskExec->id);
@@ -531,8 +354,7 @@ int after_barrier_destroy(barrier_t *b)
     return 0;
 }
 
-int before_mqueue_create(mqueue_t *queue, int max, int size)
-{
+int before_mqueue_create (mqueue_t *queue, int max, int size) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_create - BEFORE - [%d]", taskExec->id);
@@ -540,8 +362,7 @@ int before_mqueue_create(mqueue_t *queue, int max, int size)
     return 0;
 }
 
-int after_mqueue_create(mqueue_t *queue, int max, int size)
-{
+int after_mqueue_create (mqueue_t *queue, int max, int size) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_create - AFTER - [%d]", taskExec->id);
@@ -549,8 +370,7 @@ int after_mqueue_create(mqueue_t *queue, int max, int size)
     return 0;
 }
 
-int before_mqueue_send(mqueue_t *queue, void *msg)
-{
+int before_mqueue_send (mqueue_t *queue, void *msg) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_send - BEFORE - [%d]", taskExec->id);
@@ -558,8 +378,7 @@ int before_mqueue_send(mqueue_t *queue, void *msg)
     return 0;
 }
 
-int after_mqueue_send(mqueue_t *queue, void *msg)
-{
+int after_mqueue_send (mqueue_t *queue, void *msg) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_send - AFTER - [%d]", taskExec->id);
@@ -567,8 +386,7 @@ int after_mqueue_send(mqueue_t *queue, void *msg)
     return 0;
 }
 
-int before_mqueue_recv(mqueue_t *queue, void *msg)
-{
+int before_mqueue_recv (mqueue_t *queue, void *msg) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_recv - BEFORE - [%d]", taskExec->id);
@@ -576,8 +394,7 @@ int before_mqueue_recv(mqueue_t *queue, void *msg)
     return 0;
 }
 
-int after_mqueue_recv(mqueue_t *queue, void *msg)
-{
+int after_mqueue_recv (mqueue_t *queue, void *msg) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_recv - AFTER - [%d]", taskExec->id);
@@ -585,8 +402,7 @@ int after_mqueue_recv(mqueue_t *queue, void *msg)
     return 0;
 }
 
-int before_mqueue_destroy(mqueue_t *queue)
-{
+int before_mqueue_destroy (mqueue_t *queue) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_destroy - BEFORE - [%d]", taskExec->id);
@@ -594,8 +410,7 @@ int before_mqueue_destroy(mqueue_t *queue)
     return 0;
 }
 
-int after_mqueue_destroy(mqueue_t *queue)
-{
+int after_mqueue_destroy (mqueue_t *queue) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_destroy - AFTER - [%d]", taskExec->id);
@@ -603,8 +418,7 @@ int after_mqueue_destroy(mqueue_t *queue)
     return 0;
 }
 
-int before_mqueue_msgs(mqueue_t *queue)
-{
+int before_mqueue_msgs (mqueue_t *queue) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_msgs - BEFORE - [%d]", taskExec->id);
@@ -612,11 +426,104 @@ int before_mqueue_msgs(mqueue_t *queue)
     return 0;
 }
 
-int after_mqueue_msgs(mqueue_t *queue)
-{
+int after_mqueue_msgs (mqueue_t *queue) {
     // put your customization here
 #ifdef DEBUG
     printf("\nmqueue_msgs - AFTER - [%d]", taskExec->id);
 #endif
     return 0;
+}
+
+// ///////////////// Printar os dados de uma task
+void print_tcb( task_t* task ) {
+    printf("\nId %d\n", task->id);
+    printf("\nAwake Time %d\n", task->awakeTime);
+    printf("\nEstimated Execution Time %d\n", task->estimated_execution_time);
+    printf("\nRemain Execution Time %d\n", task->remaining_execution_time);
+    printf("\nState %c\n", task->state);
+}
+
+// ///////////////// Scheduler para sempre pegar a tarefa em que tem o menor tempo de execucao, excluindo a tarefa principal
+task_t * scheduler() {
+    if (readyQueue != NULL) {
+        // Se houver somente a tarefa main, vai retornar ela mesma
+        task_t* next_task = readyQueue;
+        task_t* temp = readyQueue;
+        int shortest_time = 99999999;
+        do {
+            // Resgatar a tarefa que tem o menor tempo de execucao, excluindo a tarefa main
+            if (temp->estimated_execution_time < shortest_time && temp->id != 0) {
+                shortest_time = temp->estimated_execution_time;
+                next_task = temp;
+            }
+            temp = temp->next;
+        } while (temp != readyQueue);
+        
+        return next_task;
+    }
+    return NULL;
+}
+
+// ///////////////// Seta o tempo de execucao da tarefa
+void task_set_eet (task_t *task, int et) {
+    if (task == NULL) {
+        taskExec->estimated_execution_time = et;
+
+        return;
+    }
+    task->estimated_execution_time = et;
+}
+
+// ///////////////// Resgata o tempo de execucao da tarefa
+int task_get_eet(task_t *task) {
+    if (task == NULL)
+        return taskExec->estimated_execution_time;
+    return task->estimated_execution_time;
+}
+
+// ///////////////// Resgata o tempo estimado de execucao da tarefa
+int task_get_ret(task_t *task) {
+    if (task == NULL)
+        return taskExec->remaining_execution_time;
+    return task->remaining_execution_time;
+}
+
+// ///////////////// Inicializa o signal
+void setSignal() {
+    action.sa_handler = signalHandler;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+
+    if (sigaction(SIGNAL_ALARM, &action, 0) < 0) {
+        perror ("Erro em sigaction: ") ;
+        exit (1) ;
+    }
+}
+
+// ///////////////// Inicializa o timer
+void setTimer() {
+    timer.it_value.tv_sec = 1;
+    timer.it_value.tv_usec = 0;
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 1000;
+
+    if (setitimer(ITIMER_REAL, &timer, 0) < 0) {
+        perror ("Erro em setitimer: ") ;
+        exit (1) ;
+    }
+}
+
+// ///////////////// Funcao em que vai ser chamada junto com o sinal
+void signalHandler(int signum) {
+    // Incrementa o "relogio"
+    systemTime++;
+    // Se a tarefa atual nao for nula, incrementa o tempo em que ela estah sendo executada
+    if (taskExec != NULL)
+        taskExec->remaining_execution_time++;
+    // Se nao for uma tarefa de sistema, reduz o quantum da tarefa e se chegar a 0, retorna ela para o readyQueue
+    if(taskExec != taskDisp) {
+        taskExec->time--;
+        if(taskExec->time == 0)
+            task_yield();
+    }
 }

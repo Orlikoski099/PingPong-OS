@@ -29,36 +29,39 @@ int last_created_task = 0;
 
 
 // corpo das threads
-void Body(void *arg) {
-    int i;
-    int last_printed_line = 0;
+void Body (void * arg)
+{
+  int i ;
+  int end_time = one_tick * task_get_eet(NULL);
+  int last_printed_line = 0;
 
-    printf("[%d]\t%s: inicio (tempo de execucao %d)\n", systime(), (char *)arg, task_get_eet(NULL));
-    last_printed_line = systime();
+  printf ("[%d]\t%s: inicio (tempo de execucao %d)\n", systime(), (char *) arg, task_get_eet(NULL)) ;
+  last_printed_line = systime();
 
-    while (taskExec->running_time < task_get_eet(NULL)) {
-        int et = task_get_eet(NULL); // Obtenha o tempo de execução estimado da tarefa
-        int ret = task_get_ret(NULL); // Obtenha o tempo restante para a tarefa
-
-        if ((last_printed_line + 5) <= systime()) {
-            printf("[%d]\t%s: interacao %d\t\t%d (tempo restante %d)\n", systime(), (char *)arg, et - ret, et, ret);
-            last_printed_line = systime();
-        }
-
-        if ((last_created_task != systime()) && (systime() % 100) == 0) {
-            last_created_task = systime();
-            // Crie uma nova tarefa com prioridade mais alta
-            sprintf(new_task_name, "NEWTask[%2d]", new_tasks_count);
-            printf("Criando NOVA tarefa: %s\n", new_task_name);
-            task_create(&new_user_tasks[new_tasks_count], Body, &new_task_name);
-            task_set_eet(&new_user_tasks[new_tasks_count], 15);
-            new_tasks_count++;
-            task_yield();
-        }
+  // o campo taskExec->running_time indica o tempo que a tarefa executou ate o momento
+  // se for o caso, esse campo pode ser trocado conforme a implementacao de cada equipe
+  // o que importa eh esse loop sair somente se a tarefa realmente executou o X tempo que
+  // foi indicado como seu tempo de execucao
+  while (taskExec->running_time < task_get_eet(NULL)) {
+    end_time--;
+    if ((last_printed_line+5) <= systime()) {
+      printf ("[%d]\t%s: interacao %d\t\t%d\n", systime(), (char *) arg, end_time, taskExec->running_time) ;
+      last_printed_line = systime();
     }
 
-    printf("[%d]\t%s: fim\n", systime(), (char *)arg);
-    task_exit(0);
+    if ((last_created_task != systime()) && (systime()%100) == 0) {
+      last_created_task = systime();
+      // cria uma tarefa com prioridade mais alta
+      sprintf(new_task_name, "NEWTask[%2d]", new_tasks_count);
+      printf("Criando NOVA tarefa: %s\n", new_task_name);
+      task_create (&new_user_tasks[new_tasks_count], Body, &new_task_name) ;
+      task_set_eet(&new_user_tasks[new_tasks_count], 15);
+      new_tasks_count++;
+      task_yield();
+    }
+  }
+  printf ("[%d]\t%s: fim\n", systime(), (char *) arg) ;
+  task_exit (0) ;
 }
 
 int main (int argc, char *argv[])
