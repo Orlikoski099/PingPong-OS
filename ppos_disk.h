@@ -7,48 +7,39 @@
 #ifndef __DISK_MGR__
 #define __DISK_MGR__
 
-#include "ppos.h" // Certifique-se de incluir o arquivo de cabeçalho do PingPongOS
+#include "ppos.h"    // Inclua o arquivo ppos.h
+#include "queue.h"   // Inclua o arquivo queue.h ou substitua pela sua implementação
 
-// Estrutura que representa um disco no sistema operacional
-typedef struct {
-  int numBlocks, blockSize, currentPosition;
+// estrutura que representa um disco no sistema operacional
+typedef struct
+{
+    int numBlocks;       // Número total de blocos no disco
+    int blockSize;       // Tamanho de cada bloco em bytes
+    int busy;            // Indica se o disco está ocupado (1) ou livre (0)
+    queue_t *filaDisco;  // Fila de tarefas em espera para acesso ao disco
+    int disparado;       // Indica se o gerente de disco foi acordado
+    int cabeca;          // Posição da cabeça de leitura no disco
+    int distperc;        // Distância percorrida pela cabeça de leitura
+    semaphore_t acesso;  // Semáforo para controle de acesso ao disco
 } disk_t;
 
-// Estrutura que representa uma solicitação de disco
-typedef struct request_t {
-  int cmd;
-  int block;
-  void *buffer;
-  task_t *task;
-  struct request_t *next, *prev;
-} request_t;
+// Definição da estrutura para as requisições de disco
+typedef struct diskrequest
+{
+    int cmd;            // Comando da requisição (leitura ou escrita)
+    int block;          // Número do bloco no disco
+    void *buffer;       // Buffer para leitura/escrita
+    struct diskrequest *prev;  // Ponteiro para a requisição anterior
+    struct diskrequest *next;  // Ponteiro para a próxima requisição
+} diskrequest_t;
 
-// Estrutura que representa o gerente de disco no sistema operacional
-typedef struct {
-  semaphore_t acesso;
-  int num_blocks;
-  int block_size;
-  int ocupado;
-  int cabeca;
-  long int distperc;
-  task_t *filaDisco;
-  request_t *filaSolicitacoes;
-  short disparado;
-} disk_mgr_t;
 
-// Inicialização do gerente de disco
-// Retorna -1 em erro ou 0 em sucesso
-// numBlocks: tamanho do disco, em blocos
-// blockSize: tamanho de cada bloco do disco, em bytes
 int disk_mgr_init(int *numBlocks, int *blockSize);
 
-// Leitura de um bloco, do disco para o buffer
+// leitura de um bloco, do disco para o buffer
 int disk_block_read(int block, void *buffer);
 
-// Escrita de um bloco, do buffer para o disco
+// escrita de um bloco, do buffer para o disco
 int disk_block_write(int block, void *buffer);
-
-// Função para adicionar um pedido à fila de solicitações do disco
-void adiciona_pedido(int cmd, int block, void *buffer);
 
 #endif
