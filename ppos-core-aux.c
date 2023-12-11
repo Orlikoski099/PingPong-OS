@@ -1,13 +1,11 @@
 #include "ppos.h"
+#include "ppos_data.h"
 #include "ppos-core-globals.h"
-#include "ppos_disk.h"
-#include <signal.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #define _GNU_SOURCE
 
-
-#define DEBUG true
 
 // ****************************************************************************
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
@@ -58,8 +56,8 @@ void after_task_create (task_t *task ) {
     // Quando a tarefa for criada, inicializa o tempo de execucao dela, o quantum e quando ela foi iniciada, de acordo com o "relogio" do sinal
     if (task != NULL) {
         task->estimated_execution_time = 99999;
-        task->time = 20;
-        task->time = systemTime;
+        task->total_time = 20;
+        task->total_time = systemTime;
     }
     
 #ifdef DEBUG
@@ -72,7 +70,7 @@ void before_task_exit () {
 
     // Quando a tarefa acabar, printa o resultado dela
     if (taskExec != NULL)
-        printf("Task %d exit: Execution time: %d ms Processor time: %d ms %d activations\n", taskExec->id, systemTime - taskExec->time, taskExec->estimated_execution_time, taskExec->quantidade_chamada_task);
+        printf("Task %d exit: Execution total_time: %d ms Processor total_time: %d ms %d activations\n", taskExec->id, systemTime - taskExec->total_time, taskExec->estimated_execution_time, taskExec->quantidade_chamada_task);
 #ifdef DEBUG
     printf("\ntask_exit - BEFORE - [%d]", taskExec->id);
 #endif
@@ -90,7 +88,7 @@ void before_task_switch ( task_t *task ) {
 
     // Quando a tarefa receber o processador, inicializa o quantum dela para 20 e aumenta a quantidade de vezes em que ela foi chamada
     if (task != NULL) {
-        task->time = 20;
+        task->total_time = 20;
         (task->quantidade_chamada_task)++;
     }
 #ifdef DEBUG
@@ -522,8 +520,8 @@ void signalHandler(int signum) {
         taskExec->remaining_execution_time++;
     // Se nao for uma tarefa de sistema, reduz o quantum da tarefa e se chegar a 0, retorna ela para o readyQueue
     if(taskExec != taskDisp) {
-        taskExec->time--;
-        if(taskExec->time == 0)
+        taskExec->total_time--;
+        if(taskExec->total_time == 0)
             task_yield();
     }
 }

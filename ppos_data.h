@@ -33,7 +33,7 @@ typedef struct task_t
    // Tempo em que a tarefa estah sendo executada
    int remaining_execution_time;
    // Tempo total de acordo com o "relogio" do sinal em que a tarefa foi executada
-   int time;
+   int total_time;
    // Quantidade de vezes em que a tarefa recebeu o processador
    int quantidade_chamada_task;
    
