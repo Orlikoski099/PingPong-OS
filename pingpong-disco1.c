@@ -10,8 +10,8 @@
 #include "ppos.h"
 #include "ppos_disk.h"
 
-int numblocks ;			// numero de blocos no disco
-int blocksize ;			// tamanho de cada bloco (bytes)
+int numblocks = 256;			// numero de blocos no disco
+int blocksize = 64;			// tamanho de cada bloco (bytes)
 
 int main (int argc, char *argv[])
 {
