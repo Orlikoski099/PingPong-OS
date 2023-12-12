@@ -11,6 +11,7 @@
 #include <ucontext.h>		// biblioteca POSIX de trocas de contexto
 #include "queue.h"		// biblioteca de filas genéricas
 
+
 // Estrutura que define um Task Control Block (TCB)
 typedef struct task_t
 {
@@ -26,15 +27,10 @@ typedef struct task_t
 
    // ... (outros campos deve ser adicionados APOS esse comentario)
 
-   // Quantum da tarefa
    int running_time;
-   // Tempo de execucao da tarefa
    int estimated_execution_time;
-   // Tempo em que a tarefa estah sendo executada
    int remaining_execution_time;
-   // Tempo total de acordo com o "relogio" do sinal em que a tarefa foi executada
    int total_time;
-   // Quantidade de vezes em que a tarefa recebeu o processador
    int quantidade_chamada_task;
    
 } task_t ;

@@ -2,13 +2,12 @@
 #include <stdlib.h>
 #include "disk.h"
 #include "ppos_disk.h"
-#include "ppos-core-globals.h"
 
 disk_t ppos_disco;
 
 void wakeUpDiskManager()
 {
-    task_resume(ppos_disco.filaDisco); 
+    task_resume(ppos_disco.tarefaDisco); 
 }
 
 int disk_mgr_init(int *numBlocks, int *blockSize)
@@ -73,7 +72,7 @@ void diskDriverBody(void *args)
 
         if (ppos_disco.disparado == 1)
         {
-            task_resume(ppos_disco.filaDisco);
+            task_resume(ppos_disco.tarefaDisco);
             ppos_disco.disparado = 0;
         }
 
