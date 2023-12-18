@@ -23,10 +23,10 @@ typedef struct diskrequest_t {
 
 // estrutura que representa um disco no sistema operacional
 typedef struct {
-    mutex_t diskAccessMtx;
-    mutex_t queueMtx;
-    diskrequest_t* waitingTasks;
-    diskrequest_t* processingTask;
+    mutex_t mutex_disk_access;
+    mutex_t mutex_queue;
+    diskrequest_t* awaiting_tasks;
+    diskrequest_t* processing_task;
     task_t scheduler;
 } disk_t;
 
