@@ -8,30 +8,27 @@
 #define __DISK_MGR__
 
 #include "ppos.h"    // Inclua o arquivo ppos.h
-#include "queue.h"   // Inclua o arquivo queue.h ou substitua pela sua implementação
+#include "queue.h"   
+#include "ppos-core-globals.h"
 
-// estrutura que representa um disco no sistema operacional
-typedef struct
-{
-    int numBlocks;       // Número total de blocos no disco
-    int blockSize;       // Tamanho de cada bloco em bytes
-    int busy;            // Indica se o disco está ocupado (1) ou livre (0)
-    queue_t *filaDisco;  // Fila de tarefas em espera para acesso ao disco
-    int disparado;       // Indica se o gerente de disco foi acordado
-    int cabeca;          // Posição da cabeça de leitura no disco
-    int distperc;        // Distância percorrida pela cabeça de leitura
-    semaphore_t acesso;  // Semáforo para controle de acesso ao disco
-} disk_t;
 
 // Definição da estrutura para as requisições de disco
-typedef struct diskrequest
-{
-    int cmd;            // Comando da requisição (leitura ou escrita)
-    int block;          // Número do bloco no disco
-    void *buffer;       // Buffer para leitura/escrita
-    struct diskrequest *prev;  // Ponteiro para a requisição anterior
-    struct diskrequest *next;  // Ponteiro para a próxima requisição
+typedef struct diskrequest_t {
+    task_t* task;
+    int command;
+    int block;
+    void *buffer;
+    struct diskrequest_t* next;
 } diskrequest_t;
+
+// estrutura que representa um disco no sistema operacional
+typedef struct {
+    mutex_t mutex_disk_access;
+    mutex_t mutex_queue;
+    diskrequest_t* awaiting_tasks;
+    diskrequest_t* processing_task;
+    task_t scheduler;
+} disk_t;
 
 
 int disk_mgr_init(int *numBlocks, int *blockSize);
